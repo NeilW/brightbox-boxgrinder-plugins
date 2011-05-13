@@ -1,5 +1,6 @@
-#
-# Copyright 2010 Red Hat, Inc.
+#  Brightbox - Boxgrinder Platform Plugin for Brightbox Cloud
+#  Copyright (c) 2011, Brightbox Systems
+#  Author: Neil Wilson
 #
 # This is free software; you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as

@@ -1,0 +1,10 @@
+CHANGELOG
+LICENSE
+Manifest
+README.md
+Rakefile
+lib/bbcloud-boxgrinder-plugins.rb
+lib/delivery/bbcloud-delivery-plugin.rb
+lib/os/sl-plugin.rb
+lib/platform/bbcloud-platform-plugin.rb
+lib/platform/src/rc_local
