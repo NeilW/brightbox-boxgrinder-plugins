@@ -26,5 +26,5 @@ To build an i386 version use:
 
     setarch i386 boxgrinder-build --plugins brightbox-boxgrinder-plugins sl-basic.appl -p bbcloud -d bbcloud
 
-Obviously you are not limited to Scientific Linux and can create Fedora, RHEL or CentOS images as well.
+Obviously you are not limited to Scientific Linux and can create Fedora, RHEL or CentOS images too.
 

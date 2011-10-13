@@ -31,6 +31,6 @@ Echoe.new("brightbox-boxgrinder-plugins") do |p|
   p.email = "hello@brightbox.co.uk"
   p.summary = "Brightbox Cloud support for Boxgrinder"
   p.url = "http://beta.brightbox.com"
-  p.runtime_dependencies = ['bbcloud >=0.11.2']
+  p.runtime_dependencies = ['brightbox-cli']
 end
 

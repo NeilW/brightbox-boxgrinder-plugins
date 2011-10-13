@@ -1,3 +1,7 @@
+v0.0.3
+
+* Switch dependencies to brightbox-cli
+
 v0.0.2
 
 * Ensure that the include file is the correct name
