@@ -21,9 +21,20 @@ require 'boxgrinder-build/plugins/base-plugin'
 
 module BoxGrinder
   class BbcloudDeliveryPlugin < BasePlugin
+
+    plugin :type => :delivery, :name => :bbcloud, :full_name => "Brightbox Cloud Image Registration Service"
+    def after_init
+      set_default_config_value('description', default_description)
+      set_default_config_value('name', default_name)
+      set_default_config_value('username', default_username)
+      set_default_config_value('mode', default_mode)
+      set_default_config_value('public', default_public)
+      validate_mode
+      validate_public
+    end
    
     def execute( type = :bbcloud )
-      @log.info "Adding '#{@appliance_config.name}' appliance to Brightbox Cloud..." 
+      @log.info "Adding '#{@plugin_config['name']}' appliance to Brightbox Cloud..." 
       @log.info "Using Brightbox account id #{account}"
       upload
       register_image
@@ -32,14 +43,14 @@ module BoxGrinder
     def upload
       @log.info "Uploading to #{ftp_hash['library_ftp_host']} with secure FTP"
       if system curl_command
-        @log.info "Appliance #{@appliance_config.name} uploaded."
+        @log.info "Appliance #{@plugin_config['name']} uploaded."
       else
         raise "An error occurred while uploading files."
       end
     end
 
     def register_image
-      @log.info "Registering appliance as #{image_id} under account #{account} with the name '#{appliance_name}'"
+      @log.info "Registering appliance as #{image_id} under account #{account} with the name '#{@plugin_config['name']}'"
       @log.info "Run 'brightbox-images show #{image_id}' to check registration progress"
     end
 
@@ -53,7 +64,7 @@ module BoxGrinder
     end
 
     def account
-      @account ||= @exec_helper.execute("brightbox-accounts -s list").split[0]
+      @account ||= @exec_helper.execute("brightbox-accounts -s list 2>/dev/null").split[0]
     rescue RuntimeError => e
       @log.error e.message
       raise PluginValidationError, "Make sure the that brightbox cloud API tools are installed. Use 'brightbox-config client_add' to add the api client details for your account." 
@@ -72,18 +83,49 @@ module BoxGrinder
     end
 
     def curl_command
-      "curl -# -u #{ftp_hash['library_ftp_user']}:#{ftp_hash['library_ftp_password']} --ftp-ssl-control -T #{disk_image} ftp://#{ftp_hash['library_ftp_host']}/incoming/#{target_name}"
+      "curl #{if ENV['INSECURE'] then "-k" end} -# -u #{ftp_hash['library_ftp_user']}:#{ftp_hash['library_ftp_password']} --ftp-ssl-control -T #{disk_image} ftp://#{ftp_hash['library_ftp_host']}/incoming/#{target_name}"
     end
     
-    def appliance_name
-      "#{@appliance_config.name}-#{@appliance_config.version}.#{@appliance_config.release}-#{@appliance_config.os.name}-#{@appliance_config.os.version}-#{current_platform}"
+    def default_name
+      @appliance_config.name
+    end
+
+    def default_description
+      @appliance_config.summary
+    end
+
+    def default_mode
+      'virtio'
+    end
+
+    def default_username
+      'brightbox'
+    end
+
+    def default_public
+      'false'
+    end
+
+    def validate_mode
+      case @plugin_config['mode']
+      when 'compatibility', 'virtio'
+      else
+        raise PluginValidationError, "Valid values for #{@plugin_info[:full_name]} plugin 'mode' option are 'compatibility' or 'virtio'"
+      end
+    end
+
+    def validate_public
+      case @plugin_config['public']
+      when 'true', 'false'
+      else
+        raise PluginValidationError, "Valid values for #{@plugin_info[:full_name]} plugin 'public' option are 'true' or 'false'"
+      end
     end
 
     def register_image_command
-      "brightbox-images register -a #{@appliance_config.hardware.arch} -s #{target_name} -n '#{appliance_name}' -d '#{@appliance_config.summary}'"
+      "brightbox-images register -a #{@appliance_config.hardware.arch} -s #{target_name} -n '#{@plugin_config['name']}' -d '#{@plugin_config['description']}' -u '#{@plugin_config['username']}' -m '#{@plugin_config['mode']}' -p '#{@plugin_config['public']}'"
     end
 
   end
 end
 
-plugin :class => BoxGrinder::BbcloudDeliveryPlugin, :type => :delivery, :name => :bbcloud, :full_name => "Brightbox Cloud Image Registration Service"

@@ -19,4 +19,3 @@
 
 require 'delivery/bbcloud-delivery-plugin'
 require 'platform/bbcloud-platform-plugin'
-require 'os/sl-plugin'

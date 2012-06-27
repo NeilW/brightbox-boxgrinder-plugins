@@ -4,11 +4,11 @@ This archive integrates the Boxgrinder project [boxgrinder.org](http://www.boxgr
 
 ### Supported OSes
 
-Brightbox supports all the OSs that Boxgrinder can generate and adds a plugin to generate Scientific Linux images - so you can get Enterprise Linux version 6 today.
+Brightbox supports all the OSs that Boxgrinder can generate.
 
 ### Requirements
 
-* A RPM based build machine - registering the boxgrinder appliance image with the Brightbox cloud works fine.
+* A RPM based build machine - use the current public Boxgrinder appliance registered on the Brightbox cloud
 * This plugin gem installed.
 
 ### Installing

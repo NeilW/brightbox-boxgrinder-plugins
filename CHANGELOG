@@ -1,3 +1,9 @@
+v0.0.4
+
+* Remove sl plugin incorporated upstream
+* Bring URLs and documentation up to date
+* Upload images in Qcow compressed format
+
 v0.0.3
 
 * Switch dependencies to brightbox-cli

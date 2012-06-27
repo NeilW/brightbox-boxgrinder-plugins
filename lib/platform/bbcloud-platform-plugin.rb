@@ -18,48 +18,48 @@
 # 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 
 require 'boxgrinder-build/plugins/base-plugin'
-require 'boxgrinder-build/helpers/linux-helper'
 require 'tempfile'
 
 module BoxGrinder
   class BbcloudPlatformPlugin < BasePlugin
+    plugin :type => :platform, :name => :bbcloud, :full_name => "Brightbox Cloud"
+
     def after_init
-      register_deliverable(:disk => "#{deliverable_name}.gz")
-
-      register_supported_os('fedora', ['13', '14', '15'])
-      register_supported_os('centos', ['5'])
-      register_supported_os('rhel', ['5', '6'])
-      register_supported_os('sl', ['5', '6'])
-    end
-
-    def deliverable_name
-      "#{@appliance_config.name}-#{@appliance_config.version}.#{@appliance_config.release}-#{@appliance_config.os.name}-#{@appliance_config.os.version}"
+      register_deliverable(:disk => "#{deliverable_name}.qcow2")
+      set_default_config_value('username', default_user)
+      @appliance_config.packages |= %w{cloud-init} if has_cloud_init?
     end
 
     def execute
-      @linux_helper = LinuxHelper.new(:log => @log)
-
       @log.info "Converting #{@appliance_config.name} appliance image to use Brightbox metadata services"
 
-      @image_helper.convert_disk(@previous_deliverables.disk, 'raw', uncompressed_disk_name)
+      @log.debug "Using qemu-img to convert the image to qcow2 format..."
+      @image_helper.convert_disk(@previous_deliverables.disk, :qcow2, @deliverables.disk)
+      @log.debug "Conversion done."
 
-      @image_helper.customize([uncompressed_disk_name], :automount => true) do |guestfs, guestfs_helper|
-        upload_rc_local(guestfs)
+      @log.debug "Adding metadata customisations"
+      @image_helper.customize([@deliverables.disk], :automount => true) do |guestfs, guestfs_helper|
         add_default_user(guestfs)
-	disable_root_password(guestfs)
-        change_configuration(guestfs_helper)
+	disable_root_password(guestfs_helper)
+	set_default_timezone(guestfs_helper)
+        change_ssh_configuration(guestfs_helper)
+	if has_cloud_init?
+	  customise_cloud_init(guestfs_helper)
+	else
+	  update_rc_local(guestfs)
+	end
         execute_post(guestfs_helper)
       end
-
-      @log.info "Image converted to Brightbox format, compressing"
-      @exec_helper.execute("gzip --fast -v #{uncompressed_disk_name}")
-      @log.info "Disk compressed"
+      @log.debug "Added customisations"
     end
 
-    def uncompressed_disk_name
-      @uncompressed_name ||= File.join(File.dirname(@deliverables.disk), File.basename(@deliverables.disk, '.gz'))
+    def has_cloud_init?
+      @appliance_config.os.name == 'fedora' and @appliance_config.os.version >= '16'
     end
 
+    def customise_cloud_init(guestfs_helper)
+      guestfs_helper.sh("sed -i 's/^user: ec2-user$/user: #{@plugin_config['username']}/' /etc/cloud/cloud.cfg")
+    end
 
     def execute_post(guestfs_helper)
       if @appliance_config.post['bbcloud']
@@ -68,7 +68,7 @@ module BoxGrinder
         end
         @log.debug "Post commands from appliance definition file executed."
       else
-        @log.debug "No commands specified, skipping."
+        @log.debug "No Post commands specified, skipping."
       end
     end
 
@@ -76,41 +76,68 @@ module BoxGrinder
       "brightbox"
     end
 
+    def deliverable_name
+      "#{@appliance_config.name}-#{@appliance_config.version}.#{@appliance_config.release}-#{@appliance_config.os.name}-#{@appliance_config.os.version}"
+    end
+
     def add_default_user(guestfs)
-      @log.debug "Adding #{default_user} user..."
-      guestfs.sh("useradd #{default_user}")
-      guestfs.sh("echo -e '#{default_user}\tALL=(ALL)\tNOPASSWD: ALL' >> /etc/sudoers")
-      @log.debug "User #{default_user} added."
+      @log.debug "Adding #{@plugin_config['username']} user..."
+      unless guestfs.fgrep(@plugin_config['username'], "/etc/passwd").empty?
+        @log.debug("#{@plugin_config['username']} already exists, skipping.")
+        return
+      end
+      guestfs.sh("useradd #{@plugin_config['username']}")
+      guestfs.sh("echo -e '#{@plugin_config['username']}\tALL=(ALL)\tNOPASSWD: ALL' >> /etc/sudoers")
+      @log.debug "User #{@plugin_config['username']} added."
     end
 
-    def disable_root_password(guestfs)
+    def disable_root_password(guestfs_helper)
       @log.debug "Disabling root password"
-      guestfs.sh("usermod -L root")
-      @log.debug "root password disabled - use sudo from #{default_user} account"
+      guestfs_helper.sh("usermod -L root")
+      @log.info "root password disabled - use sudo from #{@plugin_config['username']} account"
     end
 
-    def upload_rc_local(guestfs)
-      @log.debug "Uploading '/etc/rc.local' file..."
+    def update_rc_local(guestfs)
+      @log.debug "Updating '/etc/rc.d/rc.local' file..."
       rc_local = Tempfile.new('rc_local')
-      rc_local << guestfs.read_file("/etc/rc.local") + File.read("#{File.dirname(__FILE__)}/src/rc_local")
+
+      if guestfs.exists("/etc/rc.d/rc.local") == 1
+        # We're appending
+        rc_local << guestfs.read_file("/etc/rc.d/rc.local")
+      else
+        # We're creating new file
+        rc_local << "#!/bin/bash\n\n"
+      end
+
+      rc_local << File.read("#{File.dirname(__FILE__)}/src/rc_local")
       rc_local.flush
 
-      guestfs.upload(rc_local.path, "/etc/rc.local")
+      guestfs.upload(rc_local.path, "/etc/rc.d/rc.local")
 
       rc_local.close
-      @log.debug "'/etc/rc.local' file uploaded."
     end
 
-    def change_configuration(guestfs_helper)
+    def change_ssh_configuration(guestfs_helper)
       guestfs_helper.augeas do
         # disable password authentication
         set("/etc/ssh/sshd_config", "PasswordAuthentication", "no")
 
         # disable root login
         set("/etc/ssh/sshd_config", "PermitRootLogin", "no")
+
+	# Switch off GSS Authentication
+        set("/etc/ssh/sshd_config", "GSSAPIAuthentication", "no")
       end
     end
+
+    def set_default_timezone(guestfs_helper)
+      guestfs_helper.augeas do
+        set("/etc/sysconfig/clock", "UTC", "True")
+        set("/etc/sysconfig/clock", "ZONE", "Etc/UTC")
+      end
+      guestfs_helper.guestfs.cp("/usr/share/zoneinfo/UTC", "/etc/localtime")
+    end
+
   end
 end
 
-plugin :class => BoxGrinder::BbcloudPlatformPlugin, :type => :platform, :name => :bbcloud, :full_name => "Brightbox Cloud"
