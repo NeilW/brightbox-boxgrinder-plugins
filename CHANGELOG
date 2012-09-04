@@ -1,3 +1,7 @@
+v0.0.6
+
+* Really split FTP password properly
+
 v0.0.5
 
 * Split FTP reset password string properly
