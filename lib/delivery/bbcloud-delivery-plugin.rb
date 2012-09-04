@@ -75,7 +75,7 @@ module BoxGrinder
     end
 
     def ftp_hash
-      @ftp_hash ||= Hash[*(@exec_helper.execute("brightbox-accounts -s reset_ftp_password #{account} 2>/dev/null").split)]
+      @ftp_hash ||= Hash[*(@exec_helper.execute("brightbox-accounts -s reset_ftp_password #{account} 2>/dev/null").split(/\t\n/))]
     end
 
     def target_name
